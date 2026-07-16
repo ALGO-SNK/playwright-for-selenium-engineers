@@ -9,6 +9,7 @@
     "test:chapter-02": "playwright test tests/ch02",
     "test:chapter-03": "playwright test tests/ch03",
     "test:chapter-04": "playwright test tests/ch04",
+    "test:chapter-05": "playwright test tests/ch05",
     "test:list": "playwright test --list",
     "typecheck": "tsc --noEmit"
   },

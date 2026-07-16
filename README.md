@@ -39,4 +39,4 @@ npm run test:chapter-01 -- --project=chromium
 
 QualityMart, the controlled example application, will be added after its API and failure-mode contract is finalized.
 
-The Chapter 1, Chapter 2, and Chapter 4 examples currently intercept the placeholder QualityMart URL and serve deterministic in-test pages. This keeps the examples runnable while the controlled application contract is being built. Chapter 3 adds object-lifecycle, context-isolation, and event-flow examples. Chapter 4 adds suite structure, tags, annotations, steps, `use` precedence, and worker-lifecycle examples.
+The Chapter 1, Chapter 2, Chapter 4, and Chapter 5 examples currently intercept the placeholder QualityMart URL or serve deterministic in-test pages. This keeps the examples runnable while the controlled application contract is being built. Chapter 3 adds object-lifecycle, context-isolation, and event-flow examples. Chapter 4 adds suite structure, tags, annotations, steps, `use` precedence, and worker-lifecycle examples. Chapter 5 adds locator re-resolution, strictness, accessible-name, frame, shadow-root, and composition examples.
