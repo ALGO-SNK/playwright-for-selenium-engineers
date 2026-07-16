@@ -45,30 +45,22 @@ test('a popup is captured before the click and remains a separate Page', async (
 });
 
 test('a download is captured before the trigger and its contents are verified', async ({ page }, testInfo) => {
-  await page.route('https://qualitymart.test/**', async route => {
-    const url = new URL(route.request().url());
-
-    if (url.pathname === '/orders.csv') {
-      await route.fulfill({
-        body: 'id,total\nQM-1042,42.00',
-        contentType: 'text/csv',
-        headers: {
-          'content-disposition': 'attachment; filename="orders.csv"'
-        }
+  await page.setContent(`
+    <button type="button">Export CSV</button>
+    <script>
+      document.querySelector('button').addEventListener('click', () => {
+        const csv = 'id,total\\nQM-1042,42.00';
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+        link.download = 'orders.csv';
+        document.body.append(link);
+        link.click();
       });
-      return;
-    }
-
-    await route.fulfill({
-      contentType: 'text/html',
-      body: '<a href="/orders.csv" download>Export CSV</a>'
-    });
-  });
-
-  await page.goto('/');
+    </script>
+  `);
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('link', { name: 'Export CSV' }).click();
+  await page.getByRole('button', { name: 'Export CSV' }).click();
   const download = await downloadPromise;
   const savedPath = testInfo.outputPath('orders.csv');
 
