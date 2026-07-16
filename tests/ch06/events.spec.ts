@@ -45,19 +45,27 @@ test('a popup is captured before the click and remains a separate Page', async (
 });
 
 test('a download is captured before the trigger and its contents are verified', async ({ page }, testInfo) => {
-  await page.route('https://qualitymart.test/orders.csv', async route => {
+  await page.route('https://qualitymart.test/**', async route => {
+    const url = new URL(route.request().url());
+
+    if (url.pathname === '/orders.csv') {
+      await route.fulfill({
+        body: 'id,total\nQM-1042,42.00',
+        contentType: 'text/csv',
+        headers: {
+          'content-disposition': 'attachment; filename="orders.csv"'
+        }
+      });
+      return;
+    }
+
     await route.fulfill({
-      body: 'id,total\nQM-1042,42.00',
-      contentType: 'text/csv',
-      headers: {
-        'content-disposition': 'attachment; filename="orders.csv"'
-      }
+      contentType: 'text/html',
+      body: '<a href="/orders.csv" download>Export CSV</a>'
     });
   });
 
-  await page.setContent(`
-    <a href="https://qualitymart.test/orders.csv">Export CSV</a>
-  `);
+  await page.goto('/');
 
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('link', { name: 'Export CSV' }).click();
