@@ -1,0 +1,19 @@
+{
+  "name": "playwright-for-selenium-engineers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runnable examples for Playwright for Selenium Test Engineers",
+  "scripts": {
+    "test": "playwright test",
+    "test:chapter-01": "playwright test tests/ch01",
+    "test:chapter-02": "playwright test tests/ch02",
+    "test:chapter-03": "playwright test tests/ch03",
+    "test:list": "playwright test --list",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
