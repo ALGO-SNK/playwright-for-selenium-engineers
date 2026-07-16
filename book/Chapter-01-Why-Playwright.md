@@ -7,6 +7,7 @@ By the end of this chapter, you will be able to:
 - explain why a page that looks ready to a human may still be unsafe for automation;
 - compare Playwright, Selenium, and Cypress without relying on outdated slogans;
 - connect Playwright’s locators, actionability checks, contexts, and tooling to specific testing problems;
+- explain Playwright’s major authoring, debugging, network, API, isolation, and execution features;
 - name the cases where Playwright is the wrong choice;
 - give a strong interview answer to “Why did your team choose Playwright?”
 
@@ -269,7 +270,188 @@ The language distinction matters. Playwright supports TypeScript/JavaScript, Pyt
 
 ---
 
-## 1.5 What improves in real test code
+## 1.5 A guided map of Playwright’s feature set
+
+Playwright is often introduced as “a browser automation tool with auto-waiting.” That description is correct but incomplete. The Node package combines browser control, test orchestration, environment configuration, network tooling, API access, and failure evidence.
+
+The features are easier to remember when grouped by the engineering problem they solve.
+
+| Capability | What it helps you do | Important boundary |
+|---|---|---|
+| Locators and actionability | Describe a target and wait for the checks required by an action | Mechanical readiness is not business readiness |
+| Web-first assertions | Retry an observation until the expected UI or page state appears | Generic assertions do not automatically reread the page |
+| Codegen and locator picker | Record actions, generate starter tests, and inspect candidate locators | Generated code is a draft, not a framework design |
+| Inspector and `page.pause()` | Step through a live test, inspect locators, and view action logs | Primarily an interactive debugging tool |
+| UI Mode | Run, filter, watch, and inspect tests during local development | It complements CI; it does not replace CI artifacts |
+| Trace Viewer | Investigate actions, DOM snapshots, network, console, and source after execution | Traces must be retained and reviewed to provide value |
+| Network events and routing | Observe, wait for, block, modify, fulfill, or replay browser traffic | Excessive mocking can hide integration failures |
+| `APIRequestContext` | Create data, call services, verify APIs, and combine API and UI flows | It is functional API testing, not load testing |
+| Browser contexts and storage state | Isolate sessions and reuse authenticated browser state | Browser isolation does not isolate shared backend data |
+| Pages, popups, downloads, and dialogs | Coordinate browser events and multi-page journeys | Event waits must normally start before the triggering action |
+| Projects and browser configuration | Run the same suite across engines, roles, devices, or environments | A large project matrix multiplies execution cost |
+| Emulation | Control viewport, locale, timezone, geolocation, permissions, color scheme, and media | Emulation is not a physical device or real Safari |
+| Fixtures, workers, retries, and sharding | Provide dependencies and distribute isolated test work | Retries contain failures; they do not fix races |
+| Reporters, screenshots, video, and attachments | Turn test results into evidence for CI and triage | More artifacts are useful only with retention and ownership policies |
+| Visual and ARIA assertions | Protect pixels or accessibility-oriented structure | Neither replaces a complete accessibility or usability assessment |
+| Clock control | Test timers, scheduled behavior, and date-sensitive UI deterministically | It controls browser time, not every external service clock |
+
+This table is a map, not a checklist. A small project should not use every feature. Select the mechanisms that protect a measured risk.
+
+### Codegen accelerates discovery, not design
+
+Playwright’s test generator records browser interactions and produces code while you use the application:
+
+```bash
+npx playwright codegen https://qualitymart.test
+```
+
+It also offers a locator picker and can generate basic visibility, text, and value assertions. The generator prioritizes user-facing locator families such as roles, text, and test IDs, then refines a locator when several elements match.
+
+That makes Codegen useful for:
+
+- exploring an unfamiliar page;
+- discovering roles and accessible names;
+- capturing the mechanics of a difficult interaction;
+- creating a first draft during a migration spike; and
+- teaching the Playwright API through immediate feedback.
+
+The recording does not know the business reason for the scenario. It cannot decide the right test-data boundary, final oracle, fixture design, cleanup policy, or abstraction level.
+
+Treat generated code like a sketch:
+
+1. replace accidental steps with business intent;
+2. strengthen locators and assertions;
+3. remove redundant navigation and interaction;
+4. add deterministic setup and cleanup; and
+5. review secrets before saving storage state or source files.
+
+> **Interview answer: Do you use Codegen to write tests?**
+>
+> “I use Codegen to discover locators and capture a first interaction draft. I do not commit the recording unchanged. I refactor it around business behavior, deterministic data, fixtures, and strong assertions because the generator can observe actions but cannot infer the test strategy.”
+
+### Network control makes difficult states reproducible
+
+Playwright can observe browser requests and responses, wait for a specific network event, and route traffic at page or context scope.
+
+```ts
+await page.route('**/api/recommendations', async route => {
+  await route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: JSON.stringify({ message: 'Temporarily unavailable' })
+  });
+});
+
+await page.goto('/products/KB-01');
+await expect(page.getByText('Recommendations are unavailable'))
+  .toBeVisible();
+```
+
+This makes rare but important states deterministic: empty results, slow services, error responses, third-party outages, or specific payloads. Routes can also continue, abort, or modify requests and responses. HAR-based replay is useful when a controlled recording fits the test boundary.
+
+Network observation and network mocking solve different problems:
+
+- **Observe or wait** when the real integration is part of the scenario.
+- **Mock** when the test needs a focused state that is expensive, unsafe, or unreliable to create through the real dependency.
+- **Preserve contract coverage** so a stable mock cannot conceal a changed production API.
+
+Chapter 18 covers HTTP, WebSocket, service-worker, and mocking behavior in depth.
+
+### Inspector, UI Mode, and Trace Viewer serve different moments
+
+These tools overlap, but their best uses differ.
+
+Use the Inspector or `page.pause()` while a test is running and you need to step, inspect a locator, or examine the live page:
+
+```ts
+await page.pause();
+```
+
+Use UI Mode for a local development loop:
+
+```bash
+npx playwright test --ui
+```
+
+It helps select tests, rerun them, inspect steps, and work with the trace-oriented view while editing.
+
+Use Trace Viewer after an execution—especially a CI retry—to reconstruct the failure:
+
+```bash
+npx playwright show-trace test-results/trace.zip
+```
+
+A practical team workflow is:
+
+1. develop and filter locally with UI Mode;
+2. pause or inspect when a live locator is unclear;
+3. retain traces on the first CI retry; and
+4. diagnose the trace before changing selectors or timeouts.
+
+### Contexts, projects, and emulation expand coverage deliberately
+
+A browser context is a cheap isolated session. Projects are named configurations that can run the same tests with different browsers or options.
+
+```ts
+export default defineConfig({
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } }
+  ]
+});
+```
+
+Projects are not limited to browser engines. They can represent authenticated roles, locales, mobile-like configurations, feature variants, or environment-specific setup. Keep each dimension intentional: three browsers multiplied by three roles and four locales already creates thirty-six executions per test.
+
+Emulation can control viewport, user agent, touch capability, locale, timezone, geolocation, permissions, color scheme, reduced motion, and related browser inputs. It is valuable for deterministic coverage of browser-observable conditions. It is not proof of physical hardware, native mobile behavior, operating-system integration, or the Safari application.
+
+### API requests and storage state keep setup out of the UI
+
+The built-in request client supports API-only tests and hybrid journeys. A test can create an order by API, verify it through the browser, and remove it during cleanup without navigating through several setup screens.
+
+```ts
+const created = await request.post('/api/orders', {
+  data: { sku: 'KB-01', quantity: 1 }
+});
+
+expect(created.status()).toBe(201);
+```
+
+Playwright can also save browser storage state and load it into new contexts. This reduces repeated login steps while preserving a fresh context for each test.
+
+Storage-state files may contain cookies and headers capable of impersonating an account. Keep them out of source control, generate them through controlled setup, use separate accounts when parallel tests mutate server state, and refresh them when credentials expire.
+
+### Runner features scale execution and evidence
+
+Playwright Test’s runner supplies fixtures, parallel workers, projects, retries, sharding, reporters, and artifact policies as one coherent system.
+
+- **Fixtures** provide typed dependencies with setup and teardown boundaries.
+- **Workers** run independent tests concurrently in separate processes.
+- **Retries** rerun a failed test in a fresh worker and classify passed-on-retry results as flaky.
+- **Sharding** splits the suite across CI machines.
+- **Reporters** produce human and machine-readable outcomes.
+- **Screenshots, videos, traces, and attachments** preserve different forms of evidence.
+
+These features reduce framework assembly, but they still require policy. Teams must decide what runs in parallel, which data is safe, when retries are allowed, which artifacts are retained, and who investigates a flaky result.
+
+### Specialized confidence features have narrower claims
+
+Playwright can compare screenshots, assert accessibility-oriented ARIA snapshots, test keyboard and semantic behavior, control the browser clock, and experiment with component testing.
+
+Use the claim that matches the mechanism:
+
+- a screenshot comparison protects a rendered visual baseline;
+- an ARIA snapshot protects selected semantic structure;
+- automated accessibility checks find classes of detectable issues;
+- browser clock control makes browser-side time deterministic; and
+- component testing remains experimental at this book’s baseline.
+
+None of those alone proves complete visual quality, WCAG conformance, real-device behavior, or end-to-end correctness.
+
+---
+
+## 1.6 What improves in real test code
 
 Feature lists are forgettable. Consequences are useful.
 
@@ -321,7 +503,7 @@ Power and responsibility arrive together.
 
 ---
 
-## 1.6 What Playwright does not solve
+## 1.7 What Playwright does not solve
 
 This is the section to remember in a tooling meeting.
 
@@ -386,7 +568,7 @@ Playwright component testing is still labeled experimental in the official docum
 
 ---
 
-## 1.7 A decision matrix you can use
+## 1.8 A decision matrix you can use
 
 No table can choose a tool for you. This one can expose which question you have not answered.
 
@@ -434,7 +616,7 @@ Tool consolidation has value. Tool purity does not.
 
 ---
 
-## 1.8 Failure lab — identify the missing signal
+## 1.9 Failure lab — identify the missing signal
 
 Consider this test:
 
@@ -499,7 +681,7 @@ The lesson:
 
 ---
 
-## 1.9 Common mistakes
+## 1.10 Common mistakes
 
 ### Mistake 1: selling “zero flakiness”
 
@@ -539,7 +721,7 @@ The lesson:
 
 ---
 
-## 1.10 Interview corner
+## 1.11 Interview corner
 
 ### Q1. Why would you choose Playwright over Selenium?
 
@@ -607,7 +789,7 @@ Add one example from your work:
 
 ---
 
-## 1.11 Review checklist
+## 1.12 Review checklist
 
 Before approving a Playwright adoption proposal, can the team answer all of these?
 
@@ -626,7 +808,7 @@ If the proposal begins and ends with “Playwright is faster and less flaky,” 
 
 ---
 
-## 1.12 Exercises
+## 1.13 Exercises
 
 ### Exercise 1 — Build an honest comparison
 
@@ -681,12 +863,12 @@ The last two should make the limits of the comparison obvious.
 
 ---
 
-## 1.13 Summary
+## 1.14 Summary
 
 1. The hard part of browser automation is not finding a button. It is knowing when the application is ready for the action and when the business outcome is ready to assert.
 2. Selenium is a mature standards-based ecosystem. Classic WebDriver places substantial synchronization policy in the test framework, while WebDriver BiDi is expanding bidirectional capabilities. Compare modern Selenium, not a caricature.
 3. Cypress optimizes for an in-browser development model with an excellent interactive workflow and explicit architectural trade-offs.
-4. Playwright combines lazy locators, actionability checks, browser contexts, protocol-level automation, network control, tracing, and an integrated Node test runner.
+4. Playwright combines lazy locators, actionability checks, browser contexts, Codegen, Inspector, UI Mode, Trace Viewer, network control, API testing, projects, emulation, and an integrated Node test runner.
 5. Auto-waiting removes several mechanical races. It does not solve backend data, product defects, eventual consistency, environment instability, or weak test design.
 6. WebKit is not Safari, emulation is not a real device, parallel browsers are not load testing, and a passing retry is not proof of reliability.
 7. Choose Playwright when its mechanisms solve measured problems worth the migration cost. Keep or mix tools when requirements say so.
@@ -701,6 +883,15 @@ This chapter targets Playwright 1.61.1. Version-sensitive statements should be r
 - [Playwright browsers and branded channels](https://playwright.dev/docs/browsers)
 - [Playwright auto-waiting and actionability](https://playwright.dev/docs/actionability)
 - [Playwright locators](https://playwright.dev/docs/locators)
+- [Playwright test generator and Codegen](https://playwright.dev/docs/codegen)
+- [Playwright network monitoring and routing](https://playwright.dev/docs/network)
+- [Playwright Inspector and debugging](https://playwright.dev/docs/debug)
+- [Playwright UI Mode](https://playwright.dev/docs/test-ui-mode)
+- [Playwright Trace Viewer](https://playwright.dev/docs/trace-viewer)
+- [Playwright API testing](https://playwright.dev/docs/api-testing)
+- [Playwright authentication and storage state](https://playwright.dev/docs/auth)
+- [Playwright projects](https://playwright.dev/docs/test-projects)
+- [Playwright emulation](https://playwright.dev/docs/emulation)
 - [Playwright library versus Playwright Test](https://playwright.dev/docs/library)
 - [Playwright supported languages](https://playwright.dev/docs/languages)
 - [Playwright component testing — experimental](https://playwright.dev/docs/test-components)
@@ -717,4 +908,3 @@ This chapter targets Playwright 1.61.1. Version-sensitive statements should be r
 Chapter 2 creates the project you will use for the rest of the book. You will install a supported Node release, scaffold a Playwright 1.61 project, write one behavior test by hand, break it in three different ways, and read the resulting evidence.
 
 The goal is not merely to produce a green check mark. It is to understand every file and every process that produced it.
-
