@@ -2,6 +2,12 @@
 
 Runnable examples for the book *Playwright for Selenium Test Engineers: Production Automation, Migration, and Interview Mastery*.
 
+## Project structure
+
+- `book/` contains the editorial blueprint and reviewed Markdown manuscript.
+- `tests/chNN/` contains the executable examples for each chapter.
+- `.github/workflows/playwright.yml` validates the companion project across the configured browser engines.
+
 ## Baseline
 
 - Playwright: `1.61.1`
@@ -33,4 +39,4 @@ npm run test:chapter-01 -- --project=chromium
 
 QualityMart, the controlled example application, will be added after its API and failure-mode contract is finalized.
 
-The Chapter 1 and Chapter 2 examples currently intercept the placeholder QualityMart URL and serve deterministic in-test pages. This keeps the examples runnable while the controlled application contract is being built. Chapter 3 adds object-lifecycle, context-isolation, and event-flow examples.
+The Chapter 1, Chapter 2, and Chapter 4 examples currently intercept the placeholder QualityMart URL and serve deterministic in-test pages. This keeps the examples runnable while the controlled application contract is being built. Chapter 3 adds object-lifecycle, context-isolation, and event-flow examples. Chapter 4 adds suite structure, tags, annotations, steps, `use` precedence, and worker-lifecycle examples.
